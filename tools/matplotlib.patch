@@ -1,0 +1,142 @@
+diff --git a/__init__.py b/__init__.py
+new file mode 100644
+index 0000000..e69de29
+diff --git a/tools/demo.py b/tools/demo.py
+index 259d469..6458453 100644
+--- a/tools/demo.py
++++ b/tools/demo.py
+@@ -19,6 +19,29 @@ from pcdet.datasets import DatasetTemplate
+ from pcdet.models import build_network, load_data_to_gpu
+ from pcdet.utils import common_utils
+ 
++###################
++import matplotlib as mpl
++mpl.use('Agg')
++import matplotlib.pyplot as plt
++classes = {
++    "Car": 1,
++    "Pedestrian": 2,
++    "Cyclist": 3
++}
++
++# get cmap from matplotlib
++cm_viridis = mpl.cm.get_cmap('viridis')
++cm_hsv = mpl.cm.get_cmap('hsv')
++cm_gp2 = mpl.cm.get_cmap('gnuplot2')
++cm_gistrb = mpl.cm.get_cmap('gist_rainbow')
++cm_rb = mpl.cm.get_cmap('rainbow')
++
++class_colors = {
++    value : color
++    for value, color in zip(classes.values(), cm_rb(np.linspace(0, 1, len(classes))))
++}
++###################
++
+ 
+ class DemoDataset(DatasetTemplate):
+     def __init__(self, dataset_cfg, class_names, training=True, root_path=None, logger=None, ext='.bin'):
+@@ -96,14 +119,84 @@ def main():
+             data_dict = demo_dataset.collate_batch([data_dict])
+             load_data_to_gpu(data_dict)
+             pred_dicts, _ = model.forward(data_dict)
+-
+-            V.draw_scenes(
+-                points=data_dict['points'][:, 1:], ref_boxes=pred_dicts[0]['pred_boxes'],
+-                ref_scores=pred_dicts[0]['pred_scores'], ref_labels=pred_dicts[0]['pred_labels']
+-            )
+-
+-            if not OPEN3D_FLAG:
+-                mlab.show(stop=True)
++            # breakpoint()
++            # print(pred_dicts.__class__)
++
++            # V.draw_scenes(
++            #     points=data_dict['points'][:, 1:], ref_boxes=pred_dicts[0]['pred_boxes'],
++            #     ref_scores=pred_dicts[0]['pred_scores'], ref_labels=pred_dicts[0]['pred_labels']
++            # )
++            points = data_dict['points']
++            pred_boxes = pred_dicts[0]['pred_boxes']
++            pred_labels = pred_dicts[0]['pred_labels']
++            if isinstance(points, torch.Tensor):
++                points = points.cpu().numpy()
++            if isinstance(pred_boxes, torch.Tensor):
++                pred_boxes = pred_boxes.cpu().numpy()
++            if isinstance(pred_labels, torch.Tensor):
++                pred_labels = pred_labels.cpu().numpy()
++            
++
++
++            ###################            
++            # plot birds eye view
++            fig1, ax1 = plt.subplots(subplot_kw={"projection": "3d"}, figsize=(13, 13))
++            ax1.scatter3D(points[:, 1], points[:, 2], points[:, 0], s=0.2, c="black", edgecolors="none")
++
++            fig2, ax2 = plt.subplots(figsize=(13, 13))
++            ax2.scatter(points[:, 1], points[:, 2], s=0.2, c="black", edgecolors="none")
++
++            for box, label in zip(pred_boxes, pred_labels):
++                center_x, center_y, center_z, l, w, h, yaw = box
++
++                corners_x = np.array([[l/2, l/2, -l/2, -l/2, l/2, l/2, -l/2, -l/2]]).T
++                corners_y = np.array([[w/2, -w/2, -w/2, w/2, w/2, -w/2, -w/2, w/2]]).T
++                corners_z = np.array([[h/2, h/2, h/2, h/2, -h/2, -h/2, -h/2, -h/2]]).T
++                points = np.hstack((corners_x, corners_y, corners_z))
++
++                # rotation matrix
++                R = np.array([[np.cos(-yaw), -np.sin(-yaw), 0],
++                              [np.sin(-yaw),  np.cos(-yaw), 0],
++                              [           0,             0, 1]])
++                # rotate the box
++                points = points @ R
++
++                # offset the box with center position
++                points[:, 0] += center_x
++                points[:, 1] += center_y
++                points[:, 2] += center_z
++
++                # colors
++                line_c = class_colors[label]
++                line_a = 1
++                line_w = 0.5
++
++                # plot 12 lines of bounding box
++                for i in range(4):
++                    ax1.plot3D(points[[i, i+4], 0], points[[i, i+4], 1], points[[i, i+4], 2], c=line_c, alpha=line_a, linewidth=line_w)
++                for i in range(4):
++                    ax1.plot3D(points[[i, (i+1)%4], 0], points[[i, (i+1)%4], 1], points[[i, (i+1)%4], 2], c=line_c, alpha=line_a, linewidth=line_w)
++                for i in range(4):
++                    ax1.plot3D(points[[i+4, (i+1)%4+4], 0], points[[i+4, (i+1)%4+4], 1], points[[i+4, (i+1)%4+4], 2], c=line_c, alpha=line_a, linewidth=line_w)
++
++                # plot 12 lines of bounding box
++                for i in range(4):
++                    ax2.plot(points[[i, i+4], 0], points[[i, i+4], 1], c=line_c, alpha=line_a, linewidth=line_w)
++                for i in range(4):
++                    ax2.plot(points[[i, (i+1)%4], 0], points[[i, (i+1)%4], 1], c=line_c, alpha=line_a, linewidth=line_w)
++                for i in range(4):
++                    ax2.plot(points[[i+4, (i+1)%4+4], 0], points[[i+4, (i+1)%4+4], 1], c=line_c, alpha=line_a, linewidth=line_w)
++            
++            # plot setup
++            ax1.set_aspect("equal", adjustable="box")
++            ax2.set_aspect("equal")
++            fig1.savefig('test3D.png', dpi=300)
++            fig2.savefig('testBEV.png', dpi=300)
++            
++            ###################
++
++            # if not OPEN3D_FLAG:
++            #     mlab.show(stop=True)
+ 
+     logger.info('Demo done.')
+ 
+diff --git a/tools/test.png b/tools/test.png
+new file mode 100644
+index 0000000..766ad7c
+Binary files /dev/null and b/tools/test.png differ
+diff --git a/tools/test3D.png b/tools/test3D.png
+new file mode 100644
+index 0000000..11aca9a
+Binary files /dev/null and b/tools/test3D.png differ
+diff --git a/tools/testBEV.png b/tools/testBEV.png
+new file mode 100644
+index 0000000..353dcc2
+Binary files /dev/null and b/tools/testBEV.png differ
