@@ -156,6 +156,10 @@ def main():
     model.load_params_from_file(filename=args.ckpt, logger=logger, to_cpu=True)
     model.cuda()
     model.eval()
+    
+    all_bboxes = [[] for _ in range(len(demo_dataset))]
+    all_types = [[] for _ in range(len(demo_dataset))]
+    
     with torch.no_grad():
         for idx, data_dict in enumerate(demo_dataset):
             logger.info(f"Visualized sample index: \t{idx + 1}")
@@ -171,13 +175,15 @@ def main():
             # )
 
             points = data_dict["points"]
-            print(pred_dicts[0])
             pred_boxes = pred_dicts[0]["pred_boxes"]
             pred_labels = pred_dicts[0]["pred_labels"]
+            pred_scores = pred_dicts[0]["pred_scores"]
             if isinstance(points, torch.Tensor):
                 points = points.cpu().numpy()
             if isinstance(pred_boxes, torch.Tensor):
                 pred_boxes = pred_boxes.cpu().numpy()
+            if isinstance(pred_scores, torch.Tensor):
+                pred_scores = pred_scores.cpu().numpy()
             if isinstance(pred_labels, torch.Tensor):
                 pred_labels = pred_labels.cpu().numpy()
 
@@ -199,8 +205,9 @@ def main():
             bboxes = []
             types = []
 
-            for box, label in zip(pred_boxes, pred_labels):
-                bboxes.append(np.array(box))
+            for box, score, label in zip(pred_boxes, pred_scores, pred_labels):
+                # print(box, score, label)
+                bboxes.append(np.array(np.append(box, score)))
                 types.append(np.array(label))
                 
                 center_x, center_y, center_z, l, w, h, yaw = box
@@ -303,18 +310,23 @@ def main():
             fig2.savefig(
                 f"{home}/results/kitti/point-pillars/{idx + 1}testBEV.png", dpi=300
             )
+    
+            print("Saving results")
+            all_bboxes[idx] = bboxes
+            all_types[idx] = types
 
             ###################
 
             # if not OPEN3D_FLAG:
             #     mlab.show(stop=True)
+            
 
     logger.info("Demo done.")
     
     # Save detectionas as 'bboxes' and 'types'
     # bboxes = listof(np.array(x, y, z, l, w, h, yaw, confidence score))
     # types = list(classes) [1: Vehicle, 2: Pedestrian, 4: cyclist]
-    np.savez(f"/home/cv08f23/results/kitti/point-pillars/test.npz", bboxes=bboxes, types=types)
+    np.savez(f"/home/cv08f23/results/kitti/point-pillars/test.npz", bboxes=all_bboxes, types=all_types)
 
 if __name__ == "__main__":
     main()
