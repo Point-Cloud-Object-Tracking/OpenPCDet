@@ -305,10 +305,10 @@ def main():
             ax1.set_aspect("equal", adjustable="box")
             ax2.set_aspect("equal")
             fig1.savefig(
-                f"{home}/results/kitti/point-pillars/{idx + 1}test3D.png", dpi=300
+                f"{home}/results/nuscenes/point-pillars/{idx + 1}test3D.png", dpi=300
             )
             fig2.savefig(
-                f"{home}/results/kitti/point-pillars/{idx + 1}testBEV.png", dpi=300
+                f"{home}/results/nuscenes/point-pillars/{idx + 1}testBEV.png", dpi=300
             )
     
             print("Saving results")
@@ -326,7 +326,7 @@ def main():
     # Save detectionas as 'bboxes' and 'types'
     # bboxes = listof(np.array(x, y, z, l, w, h, yaw, confidence score))
     # types = list(classes) [1: Vehicle, 2: Pedestrian, 4: cyclist]
-    np.savez(f"/home/cv08f23/results/kitti/point-pillars/test.npz", bboxes=all_bboxes, types=all_types)
+    np.savez(f"/home/cv08f23/results/nuscenes/point-pillars/test.npz", bboxes=all_bboxes, types=all_types)
 
 if __name__ == "__main__":
     main()
