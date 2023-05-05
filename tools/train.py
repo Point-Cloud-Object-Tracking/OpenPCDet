@@ -5,6 +5,7 @@ import glob
 import os
 from pathlib import Path
 from test import repeat_eval_ckpt
+import sys
 
 import torch
 import torch.nn as nn
@@ -49,6 +50,8 @@ def parse_config():
     parser.add_argument('--ckpt_save_time_interval', type=int, default=300, help='in terms of seconds')
     parser.add_argument('--wo_gpu_stat', action='store_true', help='')
     parser.add_argument('--use_amp', action='store_true', help='use mix precision training')
+    # CUDA DEVICE ARGUMENT
+    parser.add_argument('--cuda_idx', type=int, default=0, help='choose which cuda device to use if available')
     
 
     args = parser.parse_args()
@@ -66,6 +69,7 @@ def parse_config():
 
 
 def main():
+    
     args, cfg = parse_config()
     if args.launcher == 'none':
         dist_train = False
@@ -100,6 +104,20 @@ def main():
     gpu_list = os.environ['CUDA_VISIBLE_DEVICES'] if 'CUDA_VISIBLE_DEVICES' in os.environ.keys() else 'ALL'
     logger.info('CUDA_VISIBLE_DEVICES=%s' % gpu_list)
 
+    # ----------------------------------------------------------
+    # SET CUDA DEVICE
+    cuda_nr = args.cuda_idx
+    # set cuda device if that specific cuda index is available
+    if torch.cuda.is_available():
+        if torch.cuda.device_count() > cuda_nr:
+            device = torch.device(f"cuda:{cuda_nr}")
+            torch.cuda.set_device(device)
+        else:
+            sys.exit(f"ERROR: cuda:{cuda_nr} not available")
+
+    logger.info(f'SET CUDA DEVICE: {torch.cuda.current_device()}')
+    # ----------------------------------------------------------
+
     if dist_train:
         logger.info('Training in distributed mode : total_batch_size: %d' % (total_gpus * args.batch_size))
     else:
@@ -125,6 +143,9 @@ def main():
         total_epochs=args.epochs,
         seed=666 if args.fix_random_seed else None
     )
+    # breakpoint()
+    # logger.info(f"DATA CONFIG: {cfg.DATA_CONFIG['grid_size']}")
+    # logger.info(f'GRID SIZE: {train_set.grid_size}')
 
     model = build_network(model_cfg=cfg.MODEL, num_class=len(cfg.CLASS_NAMES), dataset=train_set)
     if args.sync_bn:
